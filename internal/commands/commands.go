@@ -360,6 +360,29 @@ func GetModuleSBomGenCommands(loc *dir.Loc, module *mta.Module,
 			"-DoutputFormat=" + sbomFileType + " -DoutputName=" + sbomFileName + ".bom"
 		cmds = append(cmds, cmd)
 	case "custom":
+		// allow custom creation of an SBOM for e.g. a custom builder
+		customSbomGenCmds, ok := module.BuildParams["sbom-create-commands"].([]string)
+		if !ok {
+			switch module.Type {
+			case "nodejs":
+				cmd = "npm install"
+				cmds = append(cmds, cmd)
+				cmd = "npx " + cyclonedx_npm + "@" + cyclonedx_npm_version + " --output-format " + strings.ToUpper(sbomFileType) + " --spec-version " + cyclonedx_npm_schema_version + " --output-file " + sbomFileName + sbomFileSuffix
+				cmds = append(cmds, cmd)
+			case "java":
+				cmd = "mvn org.cyclonedx:cyclonedx-maven-plugin:2.7.5:makeAggregateBom " +
+					"-DschemaVersion=1.4 -DincludeBomSerialNumber=true -DincludeCompileScope=true " +
+					"-DincludeRuntimeScope=true -DincludeSystemScope=true -DincludeTestScope=false -DincludeLicenseText=false " +
+					"-DoutputFormat=" + sbomFileType + " -DoutputName=" + sbomFileName + ".bom"
+				cmds = append(cmds, cmd)
+			}
+		} else {
+			// replace fileName placeholder ${sbom-file-name}
+			for i := range customSbomGenCmds {
+				customSbomGenCmds[i] = strings.ReplaceAll(customSbomGenCmds[i], "${sbom-file-name}", sbomFileName+sbomFileSuffix)
+			}
+			cmds = append(cmds, customSbomGenCmds...)
+		}
 	default:
 	}
 
